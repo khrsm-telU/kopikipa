@@ -106,6 +106,19 @@ h1{font-size:28px}.brand{font-size:27px}.grp{font-size:22px}h2{font-size:19px}
 .kv b{font-size:20px}.sub b{font-size:23px}.exp b{font-size:21px}.stat b{font-size:22px}
 .qty input,.price input,.money input{font-size:22px}
 .tbl tr.sum td:first-child{font-size:18px}.tbl tr.sum td.r{font-size:25px}.tbl .sg{font-size:21px}
+.chip.lk{display:grid;place-items:center;padding:7px 10px}
+.chip.lk svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.more{width:100%;margin-top:8px}
+#imgModal{position:fixed;inset:0;z-index:20;background:rgba(30,18,12,.82);display:grid;place-items:center;padding:16px}
+.mbox{background:var(--card);border-radius:var(--r);padding:14px;max-width:520px;width:100%;max-height:100%;overflow:auto;text-align:center}
+.mbox img{max-width:100%;max-height:58vh;border-radius:10px;display:block;margin:0 auto 10px}
+.mbox p{font-size:13px}
+.mrow{display:flex;gap:8px;margin-top:10px}.mrow .btn{padding:12px 6px;font-size:15px}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.act{flex-direction:column;gap:6px;padding:14px 8px}
+.act svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.act .lbl{font-size:15px}
+.act:disabled{opacity:.6}
 </style>
 </head>
 <body>
@@ -148,7 +161,10 @@ h1{font-size:28px}.brand{font-size:27px}.grp{font-size:22px}h2{font-size:19px}
       <div class="card" id="jualCard"></div>
       <div class="card" id="keluarCard"></div>
       <div class="card" id="uangCard"></div>
-      <button class="btn" id="saveImg" style="margin-bottom:10px">Simpan overview jadi gambar</button>
+      <div class="acts">
+        <button class="btn act" id="copyTxt"><svg viewBox="0 0 24 24"><path d="M9 4h6v3H9z"/><path d="M15 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M9 13h6M9 17h4"/></svg><span class="lbl">Salin laporan</span></button>
+        <button class="btn ghost act" id="saveImg"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 9"/></svg><span class="lbl">Simpan gambar</span></button>
+      </div>
       <button class="btn ghost" id="newDay">Mulai hari baru</button>
     </section>
 
@@ -159,6 +175,8 @@ h1{font-size:28px}.brand{font-size:27px}.grp{font-size:22px}h2{font-size:19px}
     <button data-tab="hasil"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Overview</button>
   </nav>
 </div>
+
+<div id="imgModal" hidden><div class="mbox"><img id="imgPrev" alt="Overview Kopikipa"><p class="mut">Gambar sudah diunduh ke perangkat. Tidak ketemu? Tahan gambar di atas, lalu pilih Simpan.</p><div class="mrow"><button class="btn" id="imgDl">Unduh lagi</button><button class="btn ghost" id="imgShare" hidden>Bagikan</button><button class="btn ghost" id="imgClose">Tutup</button></div></div></div>
 
 <script>
 const KEY='pembukuan_v1';
@@ -171,7 +189,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const fresh=()=>({ready:false,cash:0,gopay:0,rows:[],exp:[],tab:'jual'});
 function load(){try{return Object.assign(fresh(),JSON.parse(localStorage.getItem(KEY)))}catch(e){return fresh()}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-let S=load(), sugList=[];
+let S=load(), sugList=[], sugAll=false;
 
 const sales=()=>S.rows.reduce((a,r)=>a+r.qty*r.price,0);
 const spent=()=>S.exp.reduce((a,e)=>a+e.amt,0);
@@ -203,7 +221,7 @@ function rowEl(r){
   const dis=r.locked?'disabled':'';
   d.innerHTML=`<div class="rtop">
     <input class="name" ${dis} placeholder="Nama barang (opsional)" value="${esc(r.name)}" aria-label="Nama barang">
-    <button class="chip lk" data-a="lock">${r.locked?'Terkunci':'Kunci'}</button>
+    <button class="chip lk" data-a="lock" aria-label="${r.locked?'Buka kunci baris':'Kunci baris'}" title="${r.locked?'Buka kunci':'Kunci'}">${r.locked?'<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>':'<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 7.6-1.7"/></svg>'}</button>
     <button class="chip del" data-a="del" ${dis} aria-label="Hapus baris">Hapus</button></div>
     <div class="rmid">
       <div class="qty"><button data-a="minus" ${dis} aria-label="Kurangi">−</button><input class="q" ${dis} inputmode="numeric" value="${r.qty}" aria-label="Jumlah"><button data-a="plus" ${dis} aria-label="Tambah">+</button></div>
@@ -253,21 +271,47 @@ $('#addRow').onclick=()=>{
 
 /* ---------- saran selisih ---------- */
 function suggest(d){
-  const rs=S.rows.filter(r=>!r.locked&&r.price>0),out=[],MAX=20;
-  for(const r of rs){
-    if(d%r.price===0){const k=d/r.price;if(k>=-r.qty&&k<=MAX)out.push({cost:Math.abs(k),ch:[[r,k]]})}
-  }
-  for(let i=0;i<rs.length;i++)for(let j=i+1;j<rs.length;j++){
-    const a=rs[i],b=rs[j];
-    for(let x=-a.qty;x<=MAX;x++){
-      if(!x)continue;
-      const rem=d-x*a.price;if(rem%b.price)continue;
-      const y=rem/b.price;if(!y||y<-b.qty||y>MAX)continue;
-      out.push({cost:Math.abs(x)+Math.abs(y)+.5,ch:[[a,x],[b,y]]});
+  const rs=S.rows.filter(r=>!r.locked&&r.price>0),n=rs.length;
+  if(!n||!d)return [];
+  const CAP=20,MAXADD=20,LIMIT=150000;
+  /* suf[i]: sum -> biaya (jumlah unit diubah) minimum, memakai baris i..n-1 */
+  const suf=new Array(n+1);suf[n]=new Map([[0,0]]);
+  for(let i=n-1;i>=0;i--){
+    const r=rs[i],m=new Map(suf[i+1]),lo=Math.min(r.qty,CAP),hi=Math.min(MAXADD,CAP);
+    for(const [sum,c] of suf[i+1]){
+      for(let k=-lo;k<=hi;k++){
+        if(!k)continue;
+        const nc=c+Math.abs(k);if(nc>CAP)continue;
+        const ns=sum+k*r.price,old=m.get(ns);
+        if(old===undefined||nc<old)m.set(ns,nc);
+      }
     }
+    if(m.size>LIMIT)return [];
+    suf[i]=m;
   }
-  out.sort((p,q)=>p.cost-q.cost);
-  return out.slice(0,3);
+  const min=suf[0].get(d);
+  if(min===undefined)return [];
+  const all=[];let nodes=0;
+  for(let L=min;L<=CAP&&all.length<30;L++){
+    const lv=[];
+    const dfs=(i,rem,left,path)=>{
+      if(lv.length>=300||++nodes>300000)return;
+      if(i===n){if(rem===0&&left===0)lv.push({cost:L,ch:path.slice()});return}
+      const m=suf[i+1],r=rs[i],z=m.get(rem);
+      if(z!==undefined&&z<=left)dfs(i+1,rem,left,path);
+      for(let k=-Math.min(r.qty,left);k<=Math.min(MAXADD,left);k++){
+        if(!k)continue;
+        const nr=rem-k*r.price,c=m.get(nr);
+        if(c===undefined||c+Math.abs(k)>left)continue;
+        path.push([r,k]);dfs(i+1,nr,left-Math.abs(k),path);path.pop();
+      }
+    };
+    dfs(0,d,L,[]);
+    all.push(...lv);
+  }
+  /* urut: perubahan unit paling sedikit, lalu jenis barang paling sedikit */
+  all.sort((p,q)=>p.cost-q.cost||p.ch.length-q.ch.length);
+  return all.slice(0,30);
 }
 const sugText=s=>{
   const dec=s.ch.filter(c=>c[1]<0),inc=s.ch.filter(c=>c[1]>0);
@@ -292,6 +336,8 @@ function renderRecon(){
     msg=kurang?'Uang lebih besar dari catatan. Ada barang yang belum tercatat.':'Catatan lebih besar dari uang. Ada barang yang tercatat berlebih.';
     sugList=suggest(d);
   }
+  if(sugList.length<=3)sugAll=false;
+  const shown=sugAll?sugList:sugList.slice(0,3);
   el.className='card recon '+cls;
   el.innerHTML=`<h2>${title}</h2><div class="big">${big}</div><p class="mut" style="color:inherit;opacity:.85;margin:4px 0 8px">${msg}</p>
   <div class="kv"><span>Cash</span><b>${rp(S.cash)}</b></div>
@@ -300,10 +346,12 @@ function renderRecon(){
   <div class="kv"><span>Pengeluaran</span><b>+ ${rp(spent())}</b></div>
   <div class="kv"><span>Target penjualan</span><b>${rp(target())}</b></div>
   <div class="kv"><span>Total catatan</span><b>${rp(sl)}</b></div>
-  ${sugList.map((s,i)=>`<div class="sug"><span>${sugText(s)}</span><button class="btn sm" data-sug="${i}">Terapkan</button></div>`).join('')}
+  ${shown.map((s,i)=>`<div class="sug"><span>${sugText(s)}</span><button class="btn sm" data-sug="${i}">Terapkan</button></div>`).join('')}
+  ${sugList.length>3?`<button class="btn ghost sm more" data-more="1">${sugAll?'Sembunyikan saran lainnya':'Lihat '+(sugList.length-3)+' saran lainnya'}</button>`:''}
   ${d!==0&&S.rows.length&&!sugList.length&&sl>0?'<p class="mut" style="margin-top:8px;color:inherit">Tidak ada kombinasi pas dari baris yang belum dikunci. Cek ulang harga atau buka kunci baris.</p>':''}`;
 }
 $('#recon').addEventListener('click',e=>{
+  if(e.target.closest('[data-more]')){sugAll=!sugAll;renderRecon();return}
   const b=e.target.closest('[data-sug]');if(!b)return;
   sugList[b.dataset.sug].ch.forEach(([r,k])=>{r.qty=Math.max(0,r.qty+k)});
   save();renderRows();renderRecon();
@@ -364,8 +412,19 @@ function dl(blob,name){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 }
+let imgUrl='';
+function showImg(blob,name){
+  if(imgUrl)URL.revokeObjectURL(imgUrl);
+  imgUrl=URL.createObjectURL(blob);$('#imgPrev').src=imgUrl;
+  const file=new File([blob],name,{type:'image/png'});
+  $('#imgShare').hidden=!(navigator.canShare&&navigator.canShare({files:[file]}));
+  $('#imgShare').onclick=async()=>{try{await navigator.share({files:[file],title:'Kopikipa'})}catch(e){}};
+  $('#imgDl').onclick=()=>dl(blob,name);
+  $('#imgModal').hidden=false;
+}
+$('#imgClose').onclick=()=>{$('#imgModal').hidden=true;if(imgUrl){URL.revokeObjectURL(imgUrl);imgUrl=''}};
 async function saveImg(){
-  const btn=$('#saveImg'),old=btn.textContent;btn.textContent='Membuat gambar...';btn.disabled=true;
+  const btn=$('#saveImg'),lb=$('#saveImg .lbl'),old=lb.textContent;lb.textContent='Membuat...';btn.disabled=true;
   try{
     try{await Promise.all([document.fonts.load('30px Chewy'),document.fonts.load('30px VT323')])}catch(e){}
     const W=720,K=2,SANS='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',CH='Chewy,'+SANS,VT='VT323,ui-monospace,monospace';
@@ -442,15 +501,39 @@ async function saveImg(){
     const ctx=c.getContext('2d');ctx.scale(K,K);draw(ctx);
     const blob=await new Promise(r=>c.toBlob(r,'image/png'));
     const name='kopikipa-'+new Date().toISOString().slice(0,10)+'.png';
-    const file=new File([blob],name,{type:'image/png'});
-    try{
-      if(/Android|iPhone|iPad/i.test(navigator.userAgent)&&navigator.canShare&&navigator.canShare({files:[file]}))await navigator.share({files:[file],title:'Kopikipa'});
-      else dl(blob,name);
-    }catch(e){if(e.name!=='AbortError')dl(blob,name)}
+    dl(blob,name);showImg(blob,name);
   }catch(e){alert('Gagal membuat gambar.')}
-  finally{btn.textContent=old;btn.disabled=false}
+  finally{lb.textContent=old;btn.disabled=false}
 }
 $('#saveImg').onclick=saveImg;
+
+/* ---------- salin catatan laporan ---------- */
+function reportText(){
+  const f=n=>n.toLocaleString('id-ID');
+  const date=new Date().toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+  const items=S.rows.filter(r=>r.qty>0);
+  const sl=sales(),ex=spent(),pf=sl-ex,pcs=items.reduce((a,r)=>a+r.qty,0);
+  const names=items.map(r=>label(r));
+  const exps=S.exp.slice().reverse();
+  const L=[];
+  L.push('LAPORAN TANGGAL : '+date,'','NAMA CREW : ','','📍lokasi outlet : Cikutra','','⏱️Jam masuk : ','');
+  L.push('STOK CUP = ',...['Djawara','Gula aren','Coklat','Americano','Matcha','Cold brew'].map(n=>n+' : '),'');
+  L.push('PENJUALAN CUP= '+f(pcs),...items.map(r=>`${label(r)} : ${r.qty}x ${f(r.price)} =${f(r.qty*r.price)}`),'—————————+','OMSET = '+f(sl),'');
+  L.push('SISA CUP = 0',...['Djawara','Gula aren','Coklat','Americano','Matcha','Coldbrew'].map(n=>'•'+n+' : '),'');
+  L.push('PENGELUARAN',...exps.map((x,i)=>`${i+1}. ${x.note||'Tanpa keterangan'}: ${f(x.amt)}`),'TOTAL PENGELUARAN = '+f(ex),'');
+  L.push(`${f(sl)} -${f(ex)} = ${f(pf)}`,'');
+  L.push('Net saldo= '+f(S.cash),'Gopay = '+f(S.gopay),'Total ='+f(money()));
+  return L.join('\n');
+}
+$('#copyTxt').onclick=async()=>{
+  const b=$('#copyTxt .lbl'),old=b.textContent,t=reportText();
+  let ok=false;
+  try{await navigator.clipboard.writeText(t);ok=true}catch(e){
+    try{const a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;opacity:0';document.body.appendChild(a);a.select();ok=document.execCommand('copy');a.remove()}catch(e2){}
+  }
+  b.textContent=ok?'Tersalin':'Gagal salin';
+  setTimeout(()=>b.textContent=old,1800);
+};
 $('#newDay').onclick=()=>{
   if(!confirm('Mulai hari baru? Semua catatan penjualan dan pengeluaran akan dihapus.'))return;
   S=fresh();save();showSetup();
