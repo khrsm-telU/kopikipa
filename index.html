@@ -113,7 +113,7 @@ h1{font-size:28px}.brand{font-size:27px}.grp{font-size:22px}h2{font-size:19px}
 <div id="setup" hidden>
   <div class="logo"><svg viewBox="0 0 24 24"><path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V9z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3v2M12 3v2"/></svg></div>
   <h1>Kopikipa</h1>
-  <p class="mut" style="margin-top:4px">Isi saldo awal hari ini. Angka ini dipakai untuk mengecek apakah ada catatan yang terlewat.</p>
+  <p class="mut" style="margin-top:4px">Isi uang cash dan saldo GoPay hari ini, sudah dikurangi pengeluaran. Dipakai untuk mengecek catatan yang terlewat.</p>
   <div class="card" style="margin-top:20px">
     <div class="field"><label for="sCash">Uang cash hari ini</label><div class="money"><span>Rp</span><input id="sCash" class="m" inputmode="numeric" placeholder="0" autocomplete="off"></div></div>
     <div class="field"><label for="sGopay">Total saldo GoPay</label><div class="money"><span>Rp</span><input id="sGopay" class="m" inputmode="numeric" placeholder="0" autocomplete="off"></div></div>
@@ -175,8 +175,9 @@ let S=load(), sugList=[];
 
 const sales=()=>S.rows.reduce((a,r)=>a+r.qty*r.price,0);
 const spent=()=>S.exp.reduce((a,e)=>a+e.amt,0);
-const money=()=>S.cash+S.gopay-spent();
-const diff=()=>money()-sales();
+const money=()=>S.cash+S.gopay;
+const target=()=>money()+spent();
+const diff=()=>target()-sales();
 const label=r=>r.name.trim()||'Barang #'+(S.rows.indexOf(r)+1);
 
 /* ---------- uang input format ---------- */
@@ -281,7 +282,7 @@ const sugText=s=>{
 function renderRecon(){
   const el=$('#recon'),d=diff(),sl=sales();
   let cls,title,big,msg='';sugList=[];
-  if(!S.rows.length||sl===0&&d===money()){cls='warn';title='Belum ada catatan';big=rp(money());msg='Isi jumlah dan harga barang untuk mulai mengecek.'}
+  if(!S.rows.length||sl===0&&d===target()){cls='warn';title='Belum ada catatan';big=rp(target());msg='Isi jumlah dan harga barang untuk mulai mengecek.'}
   else if(d===0){cls='ok';title='Catatan cocok';big='Rp0';msg='Total catatan sama dengan uang. Kunci baris yang sudah pasti benar.'}
   else{
     const kurang=d>0;
@@ -295,8 +296,9 @@ function renderRecon(){
   el.innerHTML=`<h2>${title}</h2><div class="big">${big}</div><p class="mut" style="color:inherit;opacity:.85;margin:4px 0 8px">${msg}</p>
   <div class="kv"><span>Cash</span><b>${rp(S.cash)}</b></div>
   <div class="kv"><span>GoPay</span><b>${rp(S.gopay)}</b></div>
-  <div class="kv"><span>Pengeluaran</span><b>− ${rp(spent())}</b></div>
-  <div class="kv"><span>Uang bersih</span><b>${rp(money())}</b></div>
+  <div class="kv"><span>Total uang (sudah dikurangi pengeluaran)</span><b>${rp(money())}</b></div>
+  <div class="kv"><span>Pengeluaran</span><b>+ ${rp(spent())}</b></div>
+  <div class="kv"><span>Target penjualan</span><b>${rp(target())}</b></div>
   <div class="kv"><span>Total catatan</span><b>${rp(sl)}</b></div>
   ${sugList.map((s,i)=>`<div class="sug"><span>${sugText(s)}</span><button class="btn sm" data-sug="${i}">Terapkan</button></div>`).join('')}
   ${d!==0&&S.rows.length&&!sugList.length&&sl>0?'<p class="mut" style="margin-top:8px;color:inherit">Tidak ada kombinasi pas dari baris yang belum dikunci. Cek ulang harga atau buka kunci baris.</p>':''}`;
@@ -352,8 +354,8 @@ function renderHasil(){
   const gross=S.cash+S.gopay;
   $('#uangCard').innerHTML=`<div class="grp">Cek uang</div>
     <table class="tbl"><tbody>${R('Cash',S.cash)}${R('Saldo GoPay',S.gopay,'+')}${SM('Total uang',gross)}</tbody></table>
-    <table class="tbl" style="margin-top:14px"><tbody>${R('Total uang',gross)}${R('Total pengeluaran',ex,'−')}${SM('Uang bersih',money())}</tbody></table>
-    <table class="tbl" style="margin-top:14px"><tbody>${R('Uang bersih',money())}${R('Total pendapatan',sl,'−')}${SM('Selisih',d)}</tbody></table>
+    <table class="tbl" style="margin-top:14px"><tbody>${R('Total uang',gross)}${R('Total pengeluaran',ex,'+')}${SM('Target penjualan',target())}</tbody></table>
+    <table class="tbl" style="margin-top:14px"><tbody>${R('Target penjualan',target())}${R('Total pendapatan',sl,'−')}${SM('Selisih',d)}</tbody></table>
     <div style="margin-top:12px">${status}</div>`;
 }
 
@@ -428,8 +430,8 @@ async function saveImg(){
         sumL:'Total pengeluaran',sumV:rp(ex)}]);
       table('Cek uang',null,[
         {rows:[{a:'Cash',c:rp(S.cash)},{a:'Saldo GoPay',c:rp(S.gopay),s:'+'}],sumL:'Total uang',sumV:rp(gross)},
-        {rows:[{a:'Total uang',c:rp(gross)},{a:'Total pengeluaran',c:rp(ex),s:'−'}],sumL:'Uang bersih',sumV:rp(money())},
-        {rows:[{a:'Uang bersih',c:rp(money())},{a:'Total pendapatan',c:rp(sl),s:'−'}],sumL:'Selisih',sumV:rp(d)}],
+        {rows:[{a:'Total uang',c:rp(gross)},{a:'Total pengeluaran',c:rp(ex),s:'+'}],sumL:'Target penjualan',sumV:rp(target())},
+        {rows:[{a:'Target penjualan',c:rp(target())},{a:'Total pendapatan',c:rp(sl),s:'−'}],sumL:'Selisih',sumV:rp(d)}],
         d===0?'Catatan cocok dengan uang.':'Selisih '+rp(d)+', catatan belum cocok.');
       ctx.fillStyle=DK;ctx.fillRect(0,y,W,60);
       T('Dicatat dengan Kopikipa',W/2,y+38,'26px '+VT,'#d9a47e','center');
